@@ -1,0 +1,940 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id                  String               @id @default(uuid()) @db.Uuid
+  name                String               @db.VarChar(150)
+  slug                String               @unique @db.VarChar(80)
+  defaultCurrency     String               @default("EUR") @db.VarChar(3)
+  defaultTimezone     String               @default("Europe/Paris") @db.VarChar(50)
+  locale              String               @default("fr-FR") @db.VarChar(10)
+  settingsJson        Json?
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(6)
+  addresses           Address[]
+  auditLogs           AuditLog[]
+  clients             Client[]
+  complianceTypes     ComplianceItemType[]
+  drivers             Driver[]
+  files               File[]
+  invoices            Invoice[]
+  kpiSnapshots        KpiSnapshotDaily[]
+  legalEntities       LegalEntity[]
+  missions            Mission[]
+  notificationRules   NotificationRule[]
+  notifications       Notification[]
+  orders              Order[]
+  partners            Partner[]
+  quotes              Quote[]
+  reservationRequests ReservationRequest[]
+  roles               Role[]
+  savedPlaces         SavedPlace[]
+  searchEntries       SearchIndexEntry[]
+  serviceTypes        ServiceType[]
+  tariffProfiles      TariffProfile[]
+  users               User[]
+  vehicleCategories   VehicleCategory[]
+  vehicles            Vehicle[]
+  zones               Zone[]
+  userRoles           UserRole[]
+  passengers          Passenger[]
+  tariffRules         TariffRule[]
+  payments            Payment[]
+
+  @@map("organizations")
+}
+
+model File {
+  id               String        @id @default(uuid()) @db.Uuid
+  organizationId   String?       @db.Uuid
+  storageProvider  String        @db.VarChar(50)
+  storageKey       String        @db.VarChar(255)
+  originalFilename String        @db.VarChar(255)
+  mimeType         String        @db.VarChar(120)
+  sizeBytes        BigInt        @default(0)
+  checksumSha256   String?       @db.VarChar(64)
+  createdAt        DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @db.Timestamptz(6)
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, mimeType])
+  @@map("files")
+}
+
+model Address {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String?       @db.Uuid
+  label          String?       @db.VarChar(150)
+  line1          String?       @db.VarChar(150)
+  line2          String?       @db.VarChar(150)
+  postalCode     String?       @db.VarChar(20)
+  city           String?       @db.VarChar(100)
+  region         String?       @db.VarChar(100)
+  countryCode    String?       @db.VarChar(2)
+  latitude       Decimal?      @db.Decimal(10, 7)
+  longitude      Decimal?      @db.Decimal(10, 7)
+  isAirport      Boolean       @default(false)
+  airportIata    String?       @db.VarChar(3)
+  placeId        String?       @db.VarChar(255)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, city])
+  @@index([airportIata])
+  @@map("addresses")
+}
+
+model LegalEntity {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @db.Uuid
+  name               String       @db.VarChar(150)
+  code               String?      @db.VarChar(50)
+  registrationNumber String?      @db.VarChar(80)
+  vatNumber          String?      @db.VarChar(80)
+  email              String?      @db.VarChar(150)
+  phone              String?      @db.VarChar(50)
+  addressId          String?      @db.Uuid
+  logoFileId         String?      @db.Uuid
+  invoicePrefix      String?      @db.VarChar(20)
+  isDefault          Boolean      @default(false)
+  createdAt          DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @db.Timestamptz(6)
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices           Invoice[]
+  orders             Order[]
+  quotes             Quote[]
+
+  @@index([organizationId, name])
+  @@map("legal_entities")
+}
+
+model User {
+  id                    String       @id @default(uuid()) @db.Uuid
+  organizationId        String       @db.Uuid
+  firstName             String       @db.VarChar(100)
+  lastName              String       @db.VarChar(100)
+  email                 String       @unique @db.VarChar(190)
+  phone                 String?      @db.VarChar(50)
+  passwordHash          String?      @db.VarChar(255)
+  refreshTokenHash      String?      @db.VarChar(255)
+  status                String       @default("active") @db.VarChar(50)
+  lastLoginAt           DateTime?    @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime?    @db.Timestamptz(6)
+  createdAt             DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime     @updatedAt @db.Timestamptz(6)
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  auditLogs             AuditLog[]
+  driver                Driver?
+  userRoles             UserRole[]
+
+  @@index([organizationId, status])
+  @@map("users")
+}
+
+model Role {
+  id              String           @id @default(uuid()) @db.Uuid
+  organizationId  String           @db.Uuid
+  name            String           @db.VarChar(80)
+  code            String           @db.VarChar(80)
+  description     String?
+  isSystem        Boolean          @default(false)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id              String           @id @default(uuid()) @db.Uuid
+  code            String           @unique @db.VarChar(120)
+  label           String           @db.VarChar(150)
+  description     String?
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid()) @db.Uuid
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  createdAt    DateTime   @default(now()) @db.Timestamptz(6)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String       @db.Uuid
+  roleId         String       @db.Uuid
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, roleId])
+  @@index([userId])
+  @@map("user_roles")
+}
+
+model AuditLog {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String?      @db.Uuid
+  entityType     String       @db.VarChar(80)
+  entityId       String?      @db.Uuid
+  action         String       @db.VarChar(80)
+  metaJson       Json?
+  ipAddress      String?      @db.VarChar(64)
+  userAgent      String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, entityType, entityId])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+model Client {
+  id                  String               @id @default(uuid()) @db.Uuid
+  organizationId      String               @db.Uuid
+  code                String?              @db.VarChar(50)
+  name                String               @db.VarChar(150)
+  legalName           String?              @db.VarChar(150)
+  email               String?              @db.VarChar(150)
+  phone               String?              @db.VarChar(50)
+  billingAddressId    String?              @db.Uuid
+  externalReference   String?              @db.VarChar(120)
+  paymentTermsDays    Int?                 @default(30)
+  status              String               @default("active") @db.VarChar(50)
+  notes               String?
+  createdAt           DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(6)
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts            ClientContact[]
+  invoices            Invoice[]
+  notifications       Notification[]
+  orders              Order[]
+  passengers          Passenger[]
+  portalAccessTokens  PortalAccessToken[]
+  quotes              Quote[]
+  reservationRequests ReservationRequest[]
+  savedPlaces         SavedPlace[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+  @@map("clients")
+}
+
+model ClientContact {
+  id        String   @id @default(uuid()) @db.Uuid
+  clientId  String   @db.Uuid
+  firstName String   @db.VarChar(100)
+  lastName  String   @db.VarChar(100)
+  email     String?  @db.VarChar(150)
+  phone     String?  @db.VarChar(50)
+  jobTitle  String?  @db.VarChar(100)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  orders    Order[]
+
+  @@index([clientId, isPrimary])
+  @@map("client_contacts")
+}
+
+model Passenger {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  clientId       String?      @db.Uuid
+  firstName      String       @db.VarChar(100)
+  lastName       String       @db.VarChar(100)
+  email          String?      @db.VarChar(150)
+  phone          String?      @db.VarChar(50)
+  notes          String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, lastName])
+  @@index([clientId])
+  @@map("passengers")
+}
+
+model SavedPlace {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  clientId       String?      @db.Uuid
+  label          String       @db.VarChar(150)
+  address        String       @db.VarChar(255)
+  city           String?      @db.VarChar(100)
+  latitude       Decimal?     @db.Decimal(10, 7)
+  longitude      Decimal?     @db.Decimal(10, 7)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, label])
+  @@index([clientId])
+  @@map("saved_places")
+}
+
+model Partner {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String       @db.VarChar(150)
+  legalName      String?      @db.VarChar(150)
+  email          String?      @db.VarChar(150)
+  phone          String?      @db.VarChar(50)
+  status         String       @default("active") @db.VarChar(50)
+  notes          String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  drivers        Driver[]
+  vehicles       Vehicle[]
+
+  @@index([organizationId, name])
+  @@map("partners")
+}
+
+model Driver {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  organizationId         String                  @db.Uuid
+  partnerId              String?                 @db.Uuid
+  userId                 String?                 @unique @db.Uuid
+  code                   String?                 @db.VarChar(50)
+  firstName              String                  @db.VarChar(100)
+  lastName               String                  @db.VarChar(100)
+  email                  String?                 @db.VarChar(150)
+  phone                  String?                 @db.VarChar(50)
+  status                 String                  @default("active") @db.VarChar(50)
+  licenseNumber          String?                 @db.VarChar(80)
+  professionalCardNumber String?                 @db.VarChar(80)
+  professionalCardExpiry DateTime?               @db.Timestamptz(6)
+  medicalVisitExpiry     DateTime?               @db.Timestamptz(6)
+  createdAt              DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime                @updatedAt @db.Timestamptz(6)
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  partner                Partner?                @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  user                   User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  missionAssignments     MissionAssignment[]
+  complianceItems        DriverComplianceItem[]
+  expenses               MissionExpense[]
+  incidents              MissionIncident[]
+  cashCollections        MissionCashCollection[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@index([partnerId])
+  @@map("drivers")
+}
+
+model VehicleCategory {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String       @db.VarChar(100)
+  code           String?      @db.VarChar(50)
+  seats          Int?
+  luggageCount   Int?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicles       Vehicle[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+  @@map("vehicle_categories")
+}
+
+model Vehicle {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  organizationId     String                  @db.Uuid
+  partnerId          String?                 @db.Uuid
+  categoryId         String?                 @db.Uuid
+  registrationNumber String                  @db.VarChar(50)
+  label              String?                 @db.VarChar(100)
+  brand              String?                 @db.VarChar(100)
+  model              String?                 @db.VarChar(100)
+  color              String?                 @db.VarChar(50)
+  seats              Int?
+  luggageCount       Int?
+  status             String                  @default("active") @db.VarChar(50)
+  createdAt          DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime                @updatedAt @db.Timestamptz(6)
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  partner            Partner?                @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  category           VehicleCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  missionAssignments MissionAssignment[]
+  complianceItems    VehicleComplianceItem[]
+  maintenanceEvents  MaintenanceEvent[]
+
+  @@unique([organizationId, registrationNumber])
+  @@index([organizationId, status])
+  @@index([partnerId])
+  @@map("vehicles")
+}
+
+model ServiceType {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  code           String?      @db.VarChar(50)
+  name           String       @db.VarChar(100)
+  description    String?
+  basePrice      Decimal?     @db.Decimal(12, 2)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  missions       Mission[]
+  orders         Order[]
+  tariffRules    TariffRule[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+  @@map("service_types")
+}
+
+model Zone {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  code           String?      @db.VarChar(50)
+  name           String       @db.VarChar(100)
+  zoneType       String?      @db.VarChar(50)
+  metaJson       Json?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tariffRules    TariffRule[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+  @@map("zones")
+}
+
+model TariffProfile {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String       @db.VarChar(100)
+  code           String?      @db.VarChar(50)
+  currency       String       @default("EUR") @db.VarChar(3)
+  isDefault      Boolean      @default(false)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rules          TariffRule[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+  @@map("tariff_profiles")
+}
+
+model TariffRule {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  profileId      String        @db.Uuid
+  serviceTypeId  String?       @db.Uuid
+  zoneId         String?       @db.Uuid
+  billingMode    String        @default("flat") @db.VarChar(50)
+  amount         Decimal       @db.Decimal(12, 2)
+  vatRate        Decimal?      @db.Decimal(5, 2)
+  minDistanceKm  Decimal?      @db.Decimal(10, 2)
+  maxDistanceKm  Decimal?      @db.Decimal(10, 2)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profile        TariffProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  serviceType    ServiceType?  @relation(fields: [serviceTypeId], references: [id], onDelete: SetNull)
+  zone           Zone?         @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, profileId])
+  @@index([serviceTypeId])
+  @@index([zoneId])
+  @@map("tariff_rules")
+}
+
+model Order {
+  id                String         @id @default(uuid()) @db.Uuid
+  organizationId    String         @db.Uuid
+  clientId          String         @db.Uuid
+  legalEntityId     String?        @db.Uuid
+  clientContactId   String?        @db.Uuid
+  serviceTypeId     String?        @db.Uuid
+  channel           String?        @db.VarChar(50)
+  externalReference String?        @db.VarChar(120)
+  status            String         @default("draft") @db.VarChar(50)
+  internalNotes     String?
+  createdAt         DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(6)
+  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client            Client         @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  legalEntity       LegalEntity?   @relation(fields: [legalEntityId], references: [id], onDelete: SetNull)
+  clientContact     ClientContact? @relation(fields: [clientContactId], references: [id], onDelete: SetNull)
+  serviceType       ServiceType?   @relation(fields: [serviceTypeId], references: [id], onDelete: SetNull)
+  invoices          Invoice[]
+  missions          Mission[]
+  notifications     Notification[]
+  quotes            Quote[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([clientId, createdAt])
+  @@map("orders")
+}
+
+model Mission {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  organizationId      String                  @db.Uuid
+  orderId             String?                 @db.Uuid
+  label               String                  @db.VarChar(180)
+  pickupAt            DateTime                @db.Timestamptz(6)
+  status              String                  @default("draft") @db.VarChar(50)
+  serviceTypeId       String?                 @db.Uuid
+  passengerCount      Int?
+  luggageCount        Int?
+  estimatedDistanceKm Float?
+  estimatedPrice      Float?
+  notes               String?
+  createdAt           DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime                @updatedAt @db.Timestamptz(6)
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  order               Order?                  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  serviceType         ServiceType?            @relation(fields: [serviceTypeId], references: [id], onDelete: SetNull)
+  assignment          MissionAssignment?
+  cashCollections     MissionCashCollection[]
+  expenses            MissionExpense[]
+  flightSegments      FlightSegment[]
+  incidents           MissionIncident[]
+  notifications       Notification[]
+  stops               MissionStop[]
+
+  @@index([organizationId, pickupAt])
+  @@index([orderId])
+  @@index([status, pickupAt])
+  @@map("missions")
+}
+
+model MissionStop {
+  id          String   @id @default(uuid()) @db.Uuid
+  missionId   String   @db.Uuid
+  sequence    Int
+  type        String   @db.VarChar(50)
+  scheduledAt DateTime @db.Timestamptz(6)
+  address     String   @db.VarChar(255)
+  note        String?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+  mission     Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId, sequence])
+  @@map("mission_stops")
+}
+
+model MissionAssignment {
+  id             String   @id @default(uuid()) @db.Uuid
+  missionId      String   @unique @db.Uuid
+  driverId       String   @db.Uuid
+  vehicleId      String?  @db.Uuid
+  assignmentMode String?  @db.VarChar(50)
+  status         String   @default("assigned") @db.VarChar(50)
+  assignedAt     DateTime @default(now()) @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+  mission        Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  driver         Driver   @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  vehicle        Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([driverId, assignedAt])
+  @@index([vehicleId, assignedAt])
+  @@map("mission_assignments")
+}
+
+model MissionExpense {
+  id            String   @id @default(uuid()) @db.Uuid
+  missionId     String   @db.Uuid
+  driverId      String?  @db.Uuid
+  expenseType   String   @db.VarChar(50)
+  amount        Decimal  @db.Decimal(12, 2)
+  currency      String   @default("EUR") @db.VarChar(3)
+  occurredAt    DateTime @db.Timestamptz(6)
+  note          String?
+  receiptFileId String?  @db.Uuid
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(6)
+  mission       Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  driver        Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([missionId, occurredAt])
+  @@index([driverId])
+  @@map("mission_expenses")
+}
+
+model MissionIncident {
+  id           String   @id @default(uuid()) @db.Uuid
+  missionId    String   @db.Uuid
+  driverId     String?  @db.Uuid
+  incidentType String   @db.VarChar(50)
+  status       String   @default("open") @db.VarChar(50)
+  description  String
+  occurredAt   DateTime @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+  mission      Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  driver       Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([missionId, occurredAt])
+  @@map("mission_incidents")
+}
+
+model MissionCashCollection {
+  id            String   @id @default(uuid()) @db.Uuid
+  missionId     String   @db.Uuid
+  driverId      String?  @db.Uuid
+  amount        Decimal  @db.Decimal(12, 2)
+  currency      String   @default("EUR") @db.VarChar(3)
+  paymentMethod String?  @db.VarChar(50)
+  collectedAt   DateTime @db.Timestamptz(6)
+  note          String?
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(6)
+  mission       Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  driver        Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([missionId, collectedAt])
+  @@map("mission_cash_collections")
+}
+
+model FlightSegment {
+  id           String    @id @default(uuid()) @db.Uuid
+  missionId    String    @db.Uuid
+  flightNumber String    @db.VarChar(20)
+  airportCode  String?   @db.VarChar(3)
+  terminal     String?   @db.VarChar(20)
+  airlineCode  String?   @db.VarChar(10)
+  scheduledAt  DateTime? @db.Timestamptz(6)
+  actualAt     DateTime? @db.Timestamptz(6)
+  status       String?   @db.VarChar(50)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(6)
+  mission      Mission   @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId, flightNumber])
+  @@map("flight_segments")
+}
+
+model Quote {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  orderId        String?      @db.Uuid
+  clientId       String       @db.Uuid
+  legalEntityId  String?      @db.Uuid
+  number         String       @db.VarChar(50)
+  status         String       @default("draft") @db.VarChar(50)
+  issueDate      DateTime     @db.Date
+  validUntil     DateTime?    @db.Date
+  subtotal       Decimal      @db.Decimal(12, 2)
+  taxAmount      Decimal      @db.Decimal(12, 2)
+  totalAmount    Decimal      @db.Decimal(12, 2)
+  notes          String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  order          Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  legalEntity    LegalEntity? @relation(fields: [legalEntityId], references: [id], onDelete: SetNull)
+  lines          QuoteLine[]
+
+  @@unique([organizationId, number])
+  @@index([clientId, issueDate])
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id          String   @id @default(uuid()) @db.Uuid
+  quoteId     String   @db.Uuid
+  sequence    Int
+  label       String   @db.VarChar(255)
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  taxRate     Decimal? @db.Decimal(5, 2)
+  totalAmount Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId, sequence])
+  @@map("quote_lines")
+}
+
+model Invoice {
+  id                String        @id @default(uuid()) @db.Uuid
+  organizationId    String        @db.Uuid
+  orderId           String?       @db.Uuid
+  clientId          String        @db.Uuid
+  legalEntityId     String?       @db.Uuid
+  number            String        @db.VarChar(50)
+  status            String        @default("draft") @db.VarChar(50)
+  issueDate         DateTime      @db.Date
+  dueDate           DateTime?     @db.Date
+  subtotal          Decimal       @db.Decimal(12, 2)
+  taxAmount         Decimal       @db.Decimal(12, 2)
+  totalAmount       Decimal       @db.Decimal(12, 2)
+  outstandingAmount Decimal       @db.Decimal(12, 2)
+  notes             String?
+  createdAt         DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(6)
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  order             Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  client            Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  legalEntity       LegalEntity?  @relation(fields: [legalEntityId], references: [id], onDelete: SetNull)
+  lines             InvoiceLine[]
+  payments          Payment[]
+
+  @@unique([organizationId, number])
+  @@index([clientId, issueDate])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String   @id @default(uuid()) @db.Uuid
+  invoiceId   String   @db.Uuid
+  sequence    Int
+  label       String   @db.VarChar(255)
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  taxRate     Decimal? @db.Decimal(5, 2)
+  totalAmount Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, sequence])
+  @@map("invoice_lines")
+}
+
+model Payment {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  invoiceId      String       @db.Uuid
+  amount         Decimal      @db.Decimal(12, 2)
+  currency       String       @default("EUR") @db.VarChar(3)
+  paymentMethod  String?      @db.VarChar(50)
+  paymentDate    DateTime     @db.Date
+  reference      String?      @db.VarChar(120)
+  status         String       @default("received") @db.VarChar(50)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, paymentDate])
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+model ReservationRequest {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  clientId       String?      @db.Uuid
+  customerName   String       @db.VarChar(150)
+  email          String?      @db.VarChar(150)
+  phone          String?      @db.VarChar(50)
+  pickupAddress  String       @db.VarChar(255)
+  dropoffAddress String       @db.VarChar(255)
+  pickupAt       DateTime     @db.Timestamptz(6)
+  passengerCount Int?
+  notes          String?
+  status         String       @default("new") @db.VarChar(50)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, pickupAt])
+  @@index([clientId])
+  @@map("reservation_requests")
+}
+
+model Notification {
+  id               String       @id @default(uuid()) @db.Uuid
+  organizationId   String       @db.Uuid
+  clientId         String?      @db.Uuid
+  orderId          String?      @db.Uuid
+  missionId        String?      @db.Uuid
+  channel          String       @db.VarChar(50)
+  notificationType String       @db.VarChar(80)
+  status           String       @default("pending") @db.VarChar(50)
+  recipient        String?      @db.VarChar(190)
+  subject          String?      @db.VarChar(255)
+  body             String
+  sentAt           DateTime?    @db.Timestamptz(6)
+  errorMessage     String?
+  createdAt        DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(6)
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  order            Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  mission          Mission?     @relation(fields: [missionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([orderId])
+  @@index([missionId])
+  @@map("notifications")
+}
+
+model NotificationRule {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  code           String       @db.VarChar(80)
+  triggerEvent   String       @db.VarChar(80)
+  channel        String       @db.VarChar(50)
+  templateCode   String?      @db.VarChar(80)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, code])
+  @@index([organizationId, triggerEvent])
+  @@map("notification_rules")
+}
+
+model ComplianceItemType {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  entityType     String                  @db.VarChar(20)
+  code           String?                 @db.VarChar(50)
+  name           String                  @db.VarChar(150)
+  validityDays   Int?
+  isRequired     Boolean                 @default(true)
+  createdAt      DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime                @updatedAt @db.Timestamptz(6)
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  driverItems    DriverComplianceItem[]
+  vehicleItems   VehicleComplianceItem[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, entityType])
+  @@map("compliance_item_types")
+}
+
+model DriverComplianceItem {
+  id               String             @id @default(uuid()) @db.Uuid
+  driverId         String             @db.Uuid
+  complianceTypeId String             @db.Uuid
+  status           String             @default("valid") @db.VarChar(50)
+  issuedAt         DateTime?          @db.Date
+  expiresAt        DateTime?          @db.Date
+  documentFileId   String?            @db.Uuid
+  note             String?
+  createdAt        DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime           @updatedAt @db.Timestamptz(6)
+  driver           Driver             @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  complianceType   ComplianceItemType @relation(fields: [complianceTypeId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, expiresAt])
+  @@map("driver_compliance_items")
+}
+
+model VehicleComplianceItem {
+  id               String             @id @default(uuid()) @db.Uuid
+  vehicleId        String             @db.Uuid
+  complianceTypeId String             @db.Uuid
+  status           String             @default("valid") @db.VarChar(50)
+  issuedAt         DateTime?          @db.Date
+  expiresAt        DateTime?          @db.Date
+  documentFileId   String?            @db.Uuid
+  note             String?
+  createdAt        DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime           @updatedAt @db.Timestamptz(6)
+  vehicle          Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  complianceType   ComplianceItemType @relation(fields: [complianceTypeId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, expiresAt])
+  @@map("vehicle_compliance_items")
+}
+
+model MaintenanceEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  vehicleId   String    @db.Uuid
+  eventType   String    @db.VarChar(80)
+  status      String    @default("planned") @db.VarChar(50)
+  dueAt       DateTime? @db.Timestamptz(6)
+  completedAt DateTime? @db.Timestamptz(6)
+  mileageKm   Int?
+  notes       String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, dueAt])
+  @@map("maintenance_events")
+}
+
+model PortalAccessToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  clientId  String   @db.Uuid
+  token     String   @unique @db.VarChar(255)
+  expiresAt DateTime @db.Timestamptz(6)
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, expiresAt])
+  @@map("portal_access_tokens")
+}
+
+model KpiSnapshotDaily {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  snapshotDate   DateTime     @db.Date
+  metricKey      String       @db.VarChar(80)
+  metricValue    Decimal      @db.Decimal(14, 2)
+  metaJson       Json?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, snapshotDate])
+  @@map("kpi_snapshots_daily")
+}
+
+model SearchIndexEntry {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  entityType     String       @db.VarChar(80)
+  entityId       String       @db.Uuid
+  title          String       @db.VarChar(255)
+  subtitle       String?
+  searchableText String
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, entityType])
+  @@index([organizationId, entityId])
+  @@map("search_index_entries")
+}
